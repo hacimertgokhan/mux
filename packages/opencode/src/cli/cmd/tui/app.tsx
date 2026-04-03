@@ -29,6 +29,8 @@ import { SyncProvider, useSync } from "@tui/context/sync"
 import { LocalProvider, useLocal } from "@tui/context/local"
 import { DialogModel, useConnected } from "@tui/component/dialog-model"
 import { DialogMcp } from "@tui/component/dialog-mcp"
+import { DialogSkillInstaller } from "@tui/component/dialog-skill-installer"
+import { DialogMcpInstaller } from "@tui/component/dialog-mcp-installer"
 import { DialogStatus } from "@tui/component/dialog-status"
 import { DialogThemeList } from "@tui/component/dialog-theme-list"
 import { DialogHelp } from "./ui/dialog-help"
@@ -575,6 +577,28 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       },
       onSelect: () => {
         dialog.replace(() => <DialogMcp />)
+      },
+    },
+    {
+      title: "Install MCP Servers",
+      value: "mcp.install",
+      category: "Agent",
+      slash: {
+        name: "install-mcp",
+      },
+      onSelect: () => {
+        dialog.replace(() => <DialogMcpInstaller />)
+      },
+    },
+    {
+      title: "Install Skills",
+      value: "skill.install",
+      category: "Agent",
+      slash: {
+        name: "install-skills",
+      },
+      onSelect: () => {
+        dialog.replace(() => <DialogSkillInstaller />)
       },
     },
     {
