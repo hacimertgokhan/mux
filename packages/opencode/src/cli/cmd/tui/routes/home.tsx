@@ -1,5 +1,5 @@
 import { Prompt, type PromptRef } from "@tui/component/prompt"
-import { createEffect, createSignal } from "solid-js"
+import { createEffect, createMemo, createSignal, Match, Switch } from "solid-js"
 import { Logo } from "../component/logo"
 import { useSync } from "../context/sync"
 import { Toast } from "../ui/toast"
@@ -8,6 +8,9 @@ import { useRouteData } from "@tui/context/route"
 import { usePromptRef } from "../context/prompt"
 import { useLocal } from "../context/local"
 import { TuiPluginRuntime } from "../plugin"
+import { useTuiConfig } from "../context/tui-config"
+import { useKV } from "../context/kv"
+import { LayoutMap, layout } from "@/config/tui-layout"
 
 // TODO: what is the best way to do this?
 let once = false
@@ -23,6 +26,21 @@ export function Home() {
   const [ref, setRef] = createSignal<PromptRef | undefined>()
   const args = useArgs()
   const local = useLocal()
+  const tui = useTuiConfig()
+  const kv = useKV()
+  const preset = createMemo(() => LayoutMap[layout(kv.get("layout_preset", tui.layout_preset ?? "standard"))])
+  const promptPos = createMemo<"center" | "bottom">(() => {
+    const pos = kv.get("home_prompt_position")
+    if (pos === "center" || pos === "bottom") return pos
+    if (tui.home_prompt_position) return tui.home_prompt_position
+    return preset().home_prompt_position
+  })
+  const width = createMemo(() => {
+    const value = kv.get("home_prompt_width")
+    if (typeof value === "number" && Number.isInteger(value) && value >= 40 && value <= 160) return value
+    if (typeof tui.home_prompt_width === "number") return tui.home_prompt_width
+    return preset().home_prompt_width
+  })
   let sent = false
 
   const bind = (r: PromptRef | undefined) => {
@@ -54,26 +72,49 @@ export function Home() {
   return (
     <>
       <box flexGrow={1} alignItems="center" paddingLeft={2} paddingRight={2}>
-        <box flexGrow={1} minHeight={0} />
-        <box height={4} minHeight={0} flexShrink={1} />
-        <box flexShrink={0}>
-          <TuiPluginRuntime.Slot name="home_logo" mode="replace">
-            <Logo />
-          </TuiPluginRuntime.Slot>
-        </box>
-        <box height={1} minHeight={0} flexShrink={1} />
-        <box width="100%" maxWidth={75} zIndex={1000} paddingTop={1} flexShrink={0}>
-          <TuiPluginRuntime.Slot name="home_prompt" mode="replace" workspace_id={route.workspaceID} ref={bind}>
-            <Prompt
-              ref={bind}
-              workspaceID={route.workspaceID}
-              right={<TuiPluginRuntime.Slot name="home_prompt_right" workspace_id={route.workspaceID} />}
-              placeholders={placeholder}
-            />
-          </TuiPluginRuntime.Slot>
-        </box>
+        <Switch>
+          <Match when={promptPos() === "bottom"}>
+            <box flexGrow={1} minHeight={0} />
+            <box flexShrink={0}>
+              <TuiPluginRuntime.Slot name="home_logo" mode="replace">
+                <Logo />
+              </TuiPluginRuntime.Slot>
+            </box>
+            <box flexGrow={1} minHeight={0} />
+            <box width="100%" maxWidth={width()} zIndex={1000} paddingBottom={1} flexShrink={0}>
+              <TuiPluginRuntime.Slot name="home_prompt" mode="replace" workspace_id={route.workspaceID} ref={bind}>
+                <Prompt
+                  ref={bind}
+                  workspaceID={route.workspaceID}
+                  right={<TuiPluginRuntime.Slot name="home_prompt_right" workspace_id={route.workspaceID} />}
+                  placeholders={placeholder}
+                />
+              </TuiPluginRuntime.Slot>
+            </box>
+          </Match>
+          <Match when={promptPos() !== "bottom"}>
+            <box flexGrow={1} minHeight={0} />
+            <box height={4} minHeight={0} flexShrink={1} />
+            <box flexShrink={0}>
+              <TuiPluginRuntime.Slot name="home_logo" mode="replace">
+                <Logo />
+              </TuiPluginRuntime.Slot>
+            </box>
+            <box height={1} minHeight={0} flexShrink={1} />
+            <box width="100%" maxWidth={width()} zIndex={1000} paddingTop={1} flexShrink={0}>
+              <TuiPluginRuntime.Slot name="home_prompt" mode="replace" workspace_id={route.workspaceID} ref={bind}>
+                <Prompt
+                  ref={bind}
+                  workspaceID={route.workspaceID}
+                  right={<TuiPluginRuntime.Slot name="home_prompt_right" workspace_id={route.workspaceID} />}
+                  placeholders={placeholder}
+                />
+              </TuiPluginRuntime.Slot>
+            </box>
+            <box flexGrow={1} minHeight={0} />
+          </Match>
+        </Switch>
         <TuiPluginRuntime.Slot name="home_bottom" />
-        <box flexGrow={1} minHeight={0} />
         <Toast />
       </box>
       <box width="100%" flexShrink={0}>

@@ -61,6 +61,8 @@ import { TuiConfigProvider, useTuiConfig } from "./context/tui-config"
 import { TuiConfig } from "@/config/tui"
 import { createTuiApi, TuiPluginRuntime, type RouteMap } from "./plugin"
 import { FormatError, FormatUnknownError } from "@/cli/error"
+import { LayoutMap, LayoutPreset as Layouts, layout, type LayoutPreset } from "@/config/tui-layout"
+import { Ready } from "@/ready"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -346,6 +348,33 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     renderer.clearSelection()
   }
   const [terminalTitleEnabled, setTerminalTitleEnabled] = createSignal(kv.get("terminal_title_enabled", true))
+  const [persona, setPersona] = kv.signal("personalize_enabled", false)
+  const [lay, setLay] = kv.signal<LayoutPreset>("layout_preset", layout(tuiConfig.layout_preset))
+  const lid = createMemo(() => layout(lay()))
+
+  const apply = (id: LayoutPreset) => {
+    const cfg = LayoutMap[id]
+    setLay(() => id)
+    kv.set("sidebar_position", cfg.sidebar_position)
+    kv.set("home_prompt_position", cfg.home_prompt_position)
+    kv.set("session_prompt_position", cfg.session_prompt_position)
+    kv.set("focus_mode", cfg.focus_mode)
+    kv.set("sidebar", cfg.sidebar)
+    kv.set("sidebar_width", cfg.sidebar_width)
+    kv.set("sidebar_breakpoint", cfg.sidebar_breakpoint)
+    kv.set("home_prompt_width", cfg.home_prompt_width)
+    kv.set("thinking_visibility", cfg.thinking_visibility)
+    kv.set("tool_details_visibility", cfg.tool_details_visibility)
+    kv.set("assistant_metadata_visibility", cfg.assistant_metadata_visibility)
+    kv.set("scrollbar_visible", cfg.scrollbar_visible)
+    kv.set("animations_enabled", cfg.animations_enabled)
+  }
+
+  const cycle = () => {
+    const idx = Layouts.indexOf(lid())
+    const next = idx === -1 ? Layouts[0] : Layouts[(idx + 1) % Layouts.length]
+    apply(next)
+  }
 
   // Update terminal window title based on current route and session
   createEffect(() => {
@@ -375,6 +404,14 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
 
   const args = useArgs()
   onMount(() => {
+    Ready.state()
+      .then((cfg) => {
+        if (cfg.enabled === persona()) return
+        setPersona(() => cfg.enabled)
+        kv.set("personalize_enabled", cfg.enabled)
+      })
+      .catch(() => {})
+
     batch(() => {
       if (args.agent) local.agent.set(args.agent)
       if (args.model) {
@@ -743,6 +780,285 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         dialog.replace(() => <DialogThemeList />)
       },
       category: "System",
+    },
+    {
+      title: `Layout: ${lid()}`,
+      value: "layout.cycle",
+      category: "Layout",
+      slash: {
+        name: "layout",
+      },
+      onSelect: (dialog) => {
+        cycle()
+        dialog.clear()
+      },
+    },
+    {
+      title: "Layout Standard",
+      value: "layout.standard",
+      category: "Layout",
+      slash: {
+        name: "layout-standard",
+      },
+      onSelect: (dialog) => {
+        apply("standard")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Layout Workspace",
+      value: "layout.workspace",
+      category: "Layout",
+      slash: {
+        name: "layout-workspace",
+      },
+      onSelect: (dialog) => {
+        apply("workspace")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Layout Focus",
+      value: "layout.focus",
+      category: "Layout",
+      slash: {
+        name: "layout-focus",
+      },
+      onSelect: (dialog) => {
+        apply("focus")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Layout Modern",
+      value: "layout.modern",
+      category: "Layout",
+      slash: {
+        name: "layout-modern",
+      },
+      onSelect: (dialog) => {
+        apply("modern")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Layout Soft",
+      value: "layout.soft",
+      category: "Layout",
+      slash: {
+        name: "layout-soft",
+      },
+      onSelect: (dialog) => {
+        apply("soft")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Layout Minimalist",
+      value: "layout.minimalist",
+      category: "Layout",
+      slash: {
+        name: "layout-minimalist",
+      },
+      onSelect: (dialog) => {
+        apply("minimalist")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Sidebar Left",
+      value: "layout.sidebar.left",
+      category: "Layout",
+      slash: {
+        name: "sidebar-left",
+      },
+      onSelect: (dialog) => {
+        kv.set("sidebar_position", "left")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Sidebar Right",
+      value: "layout.sidebar.right",
+      category: "Layout",
+      slash: {
+        name: "sidebar-right",
+      },
+      onSelect: (dialog) => {
+        kv.set("sidebar_position", "right")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Sidebar Auto",
+      value: "layout.sidebar.auto",
+      category: "Layout",
+      slash: {
+        name: "sidebar-auto",
+      },
+      onSelect: (dialog) => {
+        kv.set("sidebar", "auto")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Sidebar Hidden",
+      value: "layout.sidebar.hide",
+      category: "Layout",
+      slash: {
+        name: "sidebar-hide",
+      },
+      onSelect: (dialog) => {
+        kv.set("sidebar", "hide")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Sidebar Width Narrow",
+      value: "layout.sidebar.width.narrow",
+      category: "Layout",
+      slash: {
+        name: "sidebar-width-narrow",
+      },
+      onSelect: (dialog) => {
+        kv.set("sidebar_width", 32)
+        dialog.clear()
+      },
+    },
+    {
+      title: "Sidebar Width Wide",
+      value: "layout.sidebar.width.wide",
+      category: "Layout",
+      slash: {
+        name: "sidebar-width-wide",
+      },
+      onSelect: (dialog) => {
+        kv.set("sidebar_width", 52)
+        dialog.clear()
+      },
+    },
+    {
+      title: "Session Input Top",
+      value: "layout.session.top",
+      category: "Layout",
+      slash: {
+        name: "session-input-top",
+      },
+      onSelect: (dialog) => {
+        kv.set("session_prompt_position", "top")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Session Input Bottom",
+      value: "layout.session.bottom",
+      category: "Layout",
+      slash: {
+        name: "session-input-bottom",
+      },
+      onSelect: (dialog) => {
+        kv.set("session_prompt_position", "bottom")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Home Input Center",
+      value: "layout.home.center",
+      category: "Layout",
+      slash: {
+        name: "home-input-center",
+      },
+      onSelect: (dialog) => {
+        kv.set("home_prompt_position", "center")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Home Input Bottom",
+      value: "layout.home.bottom",
+      category: "Layout",
+      slash: {
+        name: "home-input-bottom",
+      },
+      onSelect: (dialog) => {
+        kv.set("home_prompt_position", "bottom")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Home Width Narrow",
+      value: "layout.home.width.narrow",
+      category: "Layout",
+      slash: {
+        name: "home-width-narrow",
+      },
+      onSelect: (dialog) => {
+        kv.set("home_prompt_width", 62)
+        dialog.clear()
+      },
+    },
+    {
+      title: "Home Width Wide",
+      value: "layout.home.width.wide",
+      category: "Layout",
+      slash: {
+        name: "home-width-wide",
+      },
+      onSelect: (dialog) => {
+        kv.set("home_prompt_width", 104)
+        dialog.clear()
+      },
+    },
+    {
+      title: persona() ? "Personalize Mode: On" : "Personalize Mode: Off",
+      value: "personalize.toggle",
+      category: "System",
+      slash: {
+        name: "personalize",
+      },
+      onSelect: async (dialog) => {
+        const out = await Ready.personalize(!persona()).catch((err) => ({
+          ok: false,
+          message: err instanceof Error ? err.message : String(err),
+          state: {
+            enabled: persona(),
+            startup: persona(),
+            prompt: "",
+          },
+        }))
+        setPersona(() => out.state.enabled)
+        kv.set("personalize_enabled", out.state.enabled)
+        toast.show({
+          variant: out.ok ? "info" : "warning",
+          message: out.message,
+        })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Personalize Save Input",
+      value: "personalize.save",
+      category: "System",
+      slash: {
+        name: "personalize-save",
+      },
+      onSelect: async (dialog) => {
+        const text = promptRef.current?.current.input.trim()
+        if (!text) {
+          toast.show({
+            variant: "warning",
+            message: "Write a command first, then run /personalize-save",
+          })
+          dialog.clear()
+          return
+        }
+        await Ready.prompt(text)
+        toast.show({
+          variant: "info",
+          message: "Saved as default personalize startup command",
+        })
+        dialog.clear()
+      },
     },
     {
       title: "Toggle Theme Mode",

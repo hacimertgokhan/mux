@@ -119,6 +119,74 @@ test("loads tui config with the same precedence order as server config paths", a
   })
 })
 
+test("loads theme mode and layout options from tui.json", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await Bun.write(
+        path.join(dir, "tui.json"),
+        JSON.stringify(
+          {
+            theme_mode: "light",
+            theme_mode_lock: "light",
+            sidebar_width: 50,
+            sidebar_breakpoint: 132,
+            home_prompt_width: 88,
+            sidebar_position: "left",
+            layout_preset: "workspace",
+            home_prompt_position: "bottom",
+            session_prompt_position: "top",
+            focus_mode: "zen",
+          },
+          null,
+          2,
+        ),
+      )
+    },
+  })
+
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const config = await TuiConfig.get()
+      expect(config.theme_mode).toBe("light")
+      expect(config.theme_mode_lock).toBe("light")
+      expect(config.sidebar_width).toBe(50)
+      expect(config.sidebar_breakpoint).toBe(132)
+      expect(config.home_prompt_width).toBe(88)
+      expect(config.sidebar_position).toBe("left")
+      expect(config.layout_preset).toBe("workspace")
+      expect(config.home_prompt_position).toBe("bottom")
+      expect(config.session_prompt_position).toBe("top")
+      expect(config.focus_mode).toBe("zen")
+    },
+  })
+})
+
+test("accepts extended layout presets from tui.json", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await Bun.write(
+        path.join(dir, "tui.json"),
+        JSON.stringify(
+          {
+            layout_preset: "minimalist",
+          },
+          null,
+          2,
+        ),
+      )
+    },
+  })
+
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const config = await TuiConfig.get()
+      expect(config.layout_preset).toBe("minimalist")
+    },
+  })
+})
+
 test("migrates tui-specific keys from opencode.json when tui.json does not exist", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
@@ -127,7 +195,19 @@ test("migrates tui-specific keys from opencode.json when tui.json does not exist
         JSON.stringify(
           {
             theme: "migrated-theme",
-            tui: { scroll_speed: 5 },
+            tui: {
+              scroll_speed: 5,
+              theme_mode: "dark",
+              theme_mode_lock: "dark",
+              sidebar_width: 47,
+              sidebar_breakpoint: 140,
+              home_prompt_width: 84,
+              sidebar_position: "left",
+              layout_preset: "workspace",
+              home_prompt_position: "bottom",
+              session_prompt_position: "top",
+              focus_mode: "zen",
+            },
             keybinds: { app_exit: "ctrl+q" },
           },
           null,
@@ -143,11 +223,31 @@ test("migrates tui-specific keys from opencode.json when tui.json does not exist
       const config = await TuiConfig.get()
       expect(config.theme).toBe("migrated-theme")
       expect(config.scroll_speed).toBe(5)
+      expect(config.theme_mode).toBe("dark")
+      expect(config.theme_mode_lock).toBe("dark")
+      expect(config.sidebar_width).toBe(47)
+      expect(config.sidebar_breakpoint).toBe(140)
+      expect(config.home_prompt_width).toBe(84)
+      expect(config.sidebar_position).toBe("left")
+      expect(config.layout_preset).toBe("workspace")
+      expect(config.home_prompt_position).toBe("bottom")
+      expect(config.session_prompt_position).toBe("top")
+      expect(config.focus_mode).toBe("zen")
       expect(config.keybinds?.app_exit).toBe("ctrl+q")
       const text = await Filesystem.readText(path.join(tmp.path, "tui.json"))
       expect(JSON.parse(text)).toMatchObject({
         theme: "migrated-theme",
         scroll_speed: 5,
+        theme_mode: "dark",
+        theme_mode_lock: "dark",
+        sidebar_width: 47,
+        sidebar_breakpoint: 140,
+        home_prompt_width: 84,
+        sidebar_position: "left",
+        layout_preset: "workspace",
+        home_prompt_position: "bottom",
+        session_prompt_position: "top",
+        focus_mode: "zen",
       })
       const server = JSON.parse(await Filesystem.readText(path.join(tmp.path, "opencode.json")))
       expect(server.theme).toBeUndefined()

@@ -83,6 +83,7 @@ import { UI } from "@/cli/ui.ts"
 import { useTuiConfig } from "../../context/tui-config"
 import { getScrollAcceleration } from "../../util/scroll"
 import { TuiPluginRuntime } from "../../plugin"
+import { LayoutMap, layout } from "@/config/tui-layout"
 
 addDefaultParsers(parsers.parsers)
 
@@ -142,27 +143,66 @@ export function Session() {
   })
 
   const dimensions = useTerminalDimensions()
-  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
+  const seed = LayoutMap[layout(kv.get("layout_preset", tuiConfig.layout_preset ?? "standard"))]
+  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", seed.sidebar)
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
-  const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
+  const [showThinking, setShowThinking] = kv.signal("thinking_visibility", seed.thinking_visibility)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
-  const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", true)
-  const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
-  const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", true)
+  const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", seed.tool_details_visibility)
+  const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal(
+    "assistant_metadata_visibility",
+    seed.assistant_metadata_visibility,
+  )
+  const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", seed.scrollbar_visible)
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
-  const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
+  const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", seed.animations_enabled)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
+  const preset = createMemo(() => LayoutMap[layout(kv.get("layout_preset", tuiConfig.layout_preset ?? "standard"))])
+  const setSpot = (value: "bottom" | "top") => {
+    kv.set("session_prompt_position", value)
+  }
 
-  const wide = createMemo(() => dimensions().width > 120)
+  const bar = createMemo(() => {
+    const value = kv.get("sidebar_width")
+    if (typeof value === "number" && Number.isInteger(value) && value >= 24 && value <= 80) return value
+    if (typeof tuiConfig.sidebar_width === "number") return tuiConfig.sidebar_width
+    return preset().sidebar_width
+  })
+  const split = createMemo(() => {
+    const value = kv.get("sidebar_breakpoint")
+    if (typeof value === "number" && Number.isInteger(value) && value >= 80 && value <= 220) return value
+    if (typeof tuiConfig.sidebar_breakpoint === "number") return tuiConfig.sidebar_breakpoint
+    return preset().sidebar_breakpoint
+  })
+  const side = createMemo<"right" | "left">(() => {
+    const value = kv.get("sidebar_position")
+    if (value === "right" || value === "left") return value
+    if (tuiConfig.sidebar_position) return tuiConfig.sidebar_position
+    return preset().sidebar_position
+  })
+  const focus = createMemo<"default" | "zen">(() => {
+    const value = kv.get("focus_mode")
+    if (value === "default" || value === "zen") return value
+    if (tuiConfig.focus_mode) return tuiConfig.focus_mode
+    return preset().focus_mode
+  })
+  const spot = createMemo<"bottom" | "top">(() => {
+    const value = kv.get("session_prompt_position")
+    if (value === "bottom" || value === "top") return value
+    if (tuiConfig.session_prompt_position) return tuiConfig.session_prompt_position
+    return preset().session_prompt_position
+  })
+  const wide = createMemo(() => dimensions().width > split())
   const sidebarVisible = createMemo(() => {
     if (session()?.parentID) return false
+    if (focus() === "zen") return sidebarOpen()
     if (sidebarOpen()) return true
     if (sidebar() === "auto" && wide()) return true
     return false
   })
   const showTimestamps = createMemo(() => timestamps() === "show")
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() && wide() ? bar() : 0) - 4)
   const providers = createMemo(() => Model.index(sync.data.provider))
 
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
@@ -568,6 +608,39 @@ export function Session() {
           setSidebar(() => (isVisible ? "hide" : "auto"))
           setSidebarOpen(!isVisible)
         })
+        dialog.clear()
+      },
+    },
+    {
+      title: spot() === "top" ? "Move input to bottom" : "Move input to top",
+      value: "session.prompt.position.toggle",
+      category: "Session",
+      slash: {
+        name: "input-position",
+        aliases: ["prompt-position", "layout-input"],
+      },
+      onSelect: (dialog) => {
+        setSpot(spot() === "top" ? "bottom" : "top")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Move input to top",
+      value: "session.prompt.position.top",
+      category: "Session",
+      hidden: true,
+      onSelect: (dialog) => {
+        setSpot("top")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Move input to bottom",
+      value: "session.prompt.position.bottom",
+      category: "Session",
+      hidden: true,
+      onSelect: (dialog) => {
+        setSpot("bottom")
         dialog.clear()
       },
     },
@@ -1013,6 +1086,29 @@ export function Session() {
   // snap to bottom when session changes
   createEffect(on(() => route.sessionID, toBottom))
 
+  const draw = () => (
+    <TuiPluginRuntime.Slot
+      name="session_prompt"
+      mode="replace"
+      session_id={route.sessionID}
+      visible={visible()}
+      disabled={disabled()}
+      on_submit={toBottom}
+      ref={bind}
+    >
+      <Prompt
+        visible={visible()}
+        ref={bind}
+        disabled={disabled()}
+        onSubmit={() => {
+          toBottom()
+        }}
+        sessionID={route.sessionID}
+        right={<TuiPluginRuntime.Slot name="session_prompt_right" session_id={route.sessionID} />}
+      />
+    </TuiPluginRuntime.Slot>
+  )
+
   return (
     <context.Provider
       value={{
@@ -1031,9 +1127,12 @@ export function Session() {
         tui: tuiConfig,
       }}
     >
-      <box flexDirection="row">
+      <box flexDirection={side() === "left" ? "row-reverse" : "row"}>
         <box flexGrow={1} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
           <Show when={session()}>
+            <Show when={visible() && spot() === "top"}>
+              <box flexShrink={0}>{draw()}</box>
+            </Show>
             <scrollbox
               ref={(r) => (scroll = r)}
               viewportOptions={{
@@ -1159,27 +1258,8 @@ export function Session() {
               <Show when={session()?.parentID}>
                 <SubagentFooter />
               </Show>
-              <Show when={visible()}>
-                <TuiPluginRuntime.Slot
-                  name="session_prompt"
-                  mode="replace"
-                  session_id={route.sessionID}
-                  visible={visible()}
-                  disabled={disabled()}
-                  on_submit={toBottom}
-                  ref={bind}
-                >
-                  <Prompt
-                    visible={visible()}
-                    ref={bind}
-                    disabled={disabled()}
-                    onSubmit={() => {
-                      toBottom()
-                    }}
-                    sessionID={route.sessionID}
-                    right={<TuiPluginRuntime.Slot name="session_prompt_right" session_id={route.sessionID} />}
-                  />
-                </TuiPluginRuntime.Slot>
+              <Show when={visible() && spot() !== "top"}>
+                {draw()}
               </Show>
             </box>
           </Show>
@@ -1188,7 +1268,7 @@ export function Session() {
         <Show when={sidebarVisible()}>
           <Switch>
             <Match when={wide()}>
-              <Sidebar sessionID={route.sessionID} />
+              <Sidebar sessionID={route.sessionID} width={bar()} />
             </Match>
             <Match when={!wide()}>
               <box
@@ -1197,10 +1277,10 @@ export function Session() {
                 left={0}
                 right={0}
                 bottom={0}
-                alignItems="flex-end"
+                alignItems={side() === "left" ? "flex-start" : "flex-end"}
                 backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
               >
-                <Sidebar sessionID={route.sessionID} />
+                <Sidebar sessionID={route.sessionID} width={bar()} />
               </box>
             </Match>
           </Switch>
