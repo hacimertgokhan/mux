@@ -181,8 +181,9 @@ async function main() {
 
   // ── Step 2: Build current platform ───────────────────────────────────────
   log("Step 2/5", `Build ${buildOs()}-${process.arch} (v${version})`)
+  const buildScript = path.join(root, "packages/opencode/script/build.ts")
   try {
-    await $`./packages/opencode/script/build.ts --single`
+    await $`bun run ${buildScript} --single`
       .env({
         ...process.env,
         OPENCODE_VERSION: version,
