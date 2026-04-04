@@ -7,6 +7,7 @@ import { useDialog } from "@tui/ui/dialog"
 import { createDialogProviderOptions, DialogProvider } from "./dialog-provider"
 import { DialogVariant } from "./dialog-variant"
 import { useKeybind } from "../context/keybind"
+import { Keybind } from "@/util/keybind"
 import * as fuzzysort from "fuzzysort"
 
 export function useConnected() {
@@ -22,11 +23,13 @@ export function DialogModel(props: { providerID?: string }) {
   const dialog = useDialog()
   const keybind = useKeybind()
   const [query, setQuery] = createSignal("")
+  const [openrouterOnly, setOpenrouterOnly] = createSignal(false)
 
   const connected = useConnected()
   const providers = createDialogProviderOptions()
 
   const showExtra = createMemo(() => connected() && !props.providerID)
+  const showOpenrouterFilter = createMemo(() => local.model.mux.enabled())
 
   const options = createMemo(() => {
     const needle = query().trim()
@@ -69,6 +72,7 @@ export function DialogModel(props: { providerID?: string }) {
 
     const providerOptions = pipe(
       sync.data.provider,
+      filter((provider) => !openrouterOnly() || provider.id === "openrouter"),
       sortBy(
         (provider) => provider.id !== "opencode",
         (provider) => provider.name,
@@ -123,7 +127,9 @@ export function DialogModel(props: { providerID?: string }) {
 
     if (needle) {
       return [
-        ...fuzzysort.go(needle, providerOptions, { keys: ["title", "category", "description", "search"] }).map((x) => x.obj),
+        ...fuzzysort
+          .go(needle, providerOptions, { keys: ["title", "category", "description", "search"] })
+          .map((x) => x.obj),
         ...fuzzysort.go(needle, popularProviders, { keys: ["title", "search"] }).map((x) => x.obj),
       ]
     }
@@ -169,6 +175,14 @@ export function DialogModel(props: { providerID?: string }) {
           disabled: !connected(),
           onTrigger: (option) => {
             local.model.toggleFavorite(option.value as { providerID: string; modelID: string })
+          },
+        },
+        {
+          keybind: Keybind.parse("ctrl+o")[0],
+          title: "OpenRouter filter",
+          disabled: !showOpenrouterFilter(),
+          onTrigger() {
+            setOpenrouterOnly((prev) => !prev)
           },
         },
       ]}

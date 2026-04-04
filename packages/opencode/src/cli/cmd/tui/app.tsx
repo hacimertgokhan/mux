@@ -556,7 +556,7 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     }
     toast.show({
       variant: "warning",
-      message: "Unknown mux subarg. Use: /mux status|keys|models|switch",
+      message: "Unknown mux subarg. Use: /mux status|keys|models|switch|about",
     })
   }
 
@@ -954,6 +954,10 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     {
       title: "Mux Status",
       value: "router.mux.status",
+      slash: {
+        name: "mux status",
+        aliases: ["mu status", "mux-status", "mu-status"],
+      },
       onSelect: () => {
         dialog.replace(() => <DialogRouterManager />)
       },
@@ -962,6 +966,10 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     {
       title: "Mux Keys",
       value: "router.mux.keys",
+      slash: {
+        name: "mux keys",
+        aliases: ["mu keys", "mux-keys", "mu-keys"],
+      },
       onSelect: () => {
         dialog.replace(() => <DialogRouterManagerKeys />)
       },
@@ -970,6 +978,10 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     {
       title: "Mux Models",
       value: "router.mux.models",
+      slash: {
+        name: "mux models",
+        aliases: ["mu models", "mux-models", "mu-models"],
+      },
       onSelect: () => {
         dialog.replace(() => <DialogMuxModels />)
       },
@@ -978,6 +990,10 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     {
       title: "Mux Switch",
       value: "router.mux.switch",
+      slash: {
+        name: "mux switch",
+        aliases: ["mu switch", "mux-switch", "mu-switch"],
+      },
       onSelect: () => {
         dialog.replace(() => <DialogRouterManager />)
       },
@@ -986,6 +1002,10 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     {
       title: "Mux About",
       value: "router.mux.about",
+      slash: {
+        name: "mux about",
+        aliases: ["mu about", "mux-about", "mu-about"],
+      },
       onSelect: () => {
         dialog.replace(() => <DialogRouterManager />)
       },

@@ -14,6 +14,7 @@ import { useSDK } from "./sdk"
 import { RGBA } from "@opentui/core"
 import { Filesystem } from "@/util/filesystem"
 import {
+  getActiveKeyInfo,
   getMuxConfig,
   resolveMuxSelection,
   setMuxEnabled,
@@ -126,6 +127,15 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             providerID: string
             modelID: string
           }[]
+          activeKey:
+            | {
+                index: number
+                label: string
+                mask: string
+                remaining: number | null
+                isFreeTier: boolean | null
+              }
+            | undefined
         }
       }>({
         ready: false,
@@ -136,6 +146,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         mux: {
           enabled: false,
           selected: [],
+          activeKey: undefined,
         },
       })
 
@@ -157,7 +168,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         })
       }
 
-        Filesystem.readJson(filePath)
+      Filesystem.readJson(filePath)
         .then((x: any) => {
           if (Array.isArray(x.recent)) setModelStore("recent", x.recent)
           if (Array.isArray(x.favorite)) setModelStore("favorite", x.favorite)
@@ -175,6 +186,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             setModelStore("mux", "enabled", mux.enabled)
             setModelStore("mux", "selected", mux.selectedModels)
           })
+        })
+        .catch(() => {})
+
+      getActiveKeyInfo()
+        .then((keyInfo) => {
+          setModelStore("mux", "activeKey", keyInfo)
+        })
+        .catch(() => {})
+
+      getActiveKeyInfo()
+        .then((keyInfo) => {
+          setModelStore("mux", "activeKey", keyInfo)
         })
         .catch(() => {})
 
@@ -448,16 +471,25 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           selected() {
             return modelStore.mux.selected
           },
+          activeKey() {
+            return modelStore.mux.activeKey
+          },
           catalog() {
             return muxCatalog()
           },
           async setEnabled(enabled: boolean) {
             const mux = await setMuxEnabled(enabled)
             setModelStore("mux", "enabled", mux.enabled)
+            getActiveKeyInfo()
+              .then((keyInfo) => setModelStore("mux", "activeKey", keyInfo))
+              .catch(() => {})
           },
           async toggleEnabled() {
             const mux = await toggleMuxEnabled()
             setModelStore("mux", "enabled", mux.enabled)
+            getActiveKeyInfo()
+              .then((keyInfo) => setModelStore("mux", "activeKey", keyInfo))
+              .catch(() => {})
             return mux.enabled
           },
           async toggleModel(model: { providerID: string; modelID: string }) {

@@ -75,8 +75,8 @@ function defaultConfig(): RouterManagerConfig {
 function normalizeMux(raw: any): NonNullable<RouterManagerConfig["mux"]> {
   const selectedModels = Array.isArray(raw?.selectedModels)
     ? raw.selectedModels
-      .filter((item: any) => item && typeof item.providerID === "string" && typeof item.modelID === "string")
-      .map((item: any) => ({ providerID: item.providerID, modelID: item.modelID }))
+        .filter((item: any) => item && typeof item.providerID === "string" && typeof item.modelID === "string")
+        .map((item: any) => ({ providerID: item.providerID, modelID: item.modelID }))
     : []
   return {
     enabled: raw?.enabled === true,
@@ -110,11 +110,11 @@ export async function loadConfig(): Promise<RouterManagerConfig> {
     return {
       keys: Array.isArray(parsed?.keys)
         ? parsed.keys.map((item: any) => ({
-          key: String(item?.key ?? ""),
-          label: String(item?.label ?? ""),
-          addedAt: String(item?.addedAt ?? new Date().toISOString()),
-          enabled: item?.enabled !== false,
-        }))
+            key: String(item?.key ?? ""),
+            label: String(item?.label ?? ""),
+            addedAt: String(item?.addedAt ?? new Date().toISOString()),
+            enabled: item?.enabled !== false,
+          }))
         : [],
       activeKeyIndex: Number.isInteger(parsed?.activeKeyIndex) ? parsed.activeKeyIndex : -1,
       mux: normalizeMux(parsed?.mux),
@@ -187,7 +187,7 @@ export async function syncAuthFromConfig(config?: RouterManagerConfig) {
   const current = config ?? (await loadConfig())
   const active = current.keys[current.activeKeyIndex]
   if (!active?.key) {
-    await Auth.remove("openrouter").catch(() => { })
+    await Auth.remove("openrouter").catch(() => {})
     return
   }
 
@@ -206,6 +206,30 @@ export async function getActiveKey() {
 
 export async function getActiveApiKey() {
   return (await getActiveKey())?.key
+}
+
+export async function getActiveKeyInfo() {
+  const config = await loadConfig()
+  const key = config.keys[config.activeKeyIndex]
+  if (!key) return undefined
+  try {
+    const info = await getKeyInfo(key.key)
+    return {
+      index: config.activeKeyIndex,
+      label: info.label || key.label || "Unnamed",
+      mask: maskKey(key.key),
+      remaining: info.limit_remaining,
+      isFreeTier: info.is_free_tier,
+    }
+  } catch {
+    return {
+      index: config.activeKeyIndex,
+      label: key.label || "Unnamed",
+      mask: maskKey(key.key),
+      remaining: null,
+      isFreeTier: null,
+    }
+  }
 }
 
 export async function getMuxConfig() {
@@ -279,7 +303,11 @@ export function summarizeModelBudget(model: ModelCatalogEntry, remainingCredits:
   }
 }
 
-export function getMuxCandidates(current: ModelRef, catalog: ModelCatalogEntry[], mux: NonNullable<RouterManagerConfig["mux"]>) {
+export function getMuxCandidates(
+  current: ModelRef,
+  catalog: ModelCatalogEntry[],
+  mux: NonNullable<RouterManagerConfig["mux"]>,
+) {
   const selected = mux.selectedModels
     .map((item) => catalog.find((candidate) => modelRefKey(candidate) === modelRefKey(item)))
     .filter(Boolean) as ModelCatalogEntry[]
@@ -355,7 +383,9 @@ export async function resolveMuxSelection(current: ModelRef, catalog: ModelCatal
       continue
     }
 
-    const activeUsable = list.find((state) => state.index === activeIndex && state.ok && canUseModel(state.remaining, candidate))
+    const activeUsable = list.find(
+      (state) => state.index === activeIndex && state.ok && canUseModel(state.remaining, candidate),
+    )
     if (activeUsable) {
       return {
         model: { providerID: candidate.providerID, modelID: candidate.modelID },
@@ -606,7 +636,12 @@ export async function infoOutput() {
       lines.push(`Monthly:   ${formatCredits(info.usage_monthly)}`)
       lines.push(`Free Tier: ${info.is_free_tier ? "Yes" : "No"}`)
 
-      if (info.limit !== null && info.limit !== undefined && info.limit_remaining !== null && info.limit_remaining !== undefined) {
+      if (
+        info.limit !== null &&
+        info.limit !== undefined &&
+        info.limit_remaining !== null &&
+        info.limit_remaining !== undefined
+      ) {
         const pct = info.limit > 0 ? Math.max(0, Math.min(100, (info.limit_remaining / info.limit) * 100)) : 0
         const barLength = 30
         const filled = Math.round((pct / 100) * barLength)

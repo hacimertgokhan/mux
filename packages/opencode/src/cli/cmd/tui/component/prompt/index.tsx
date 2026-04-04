@@ -1174,6 +1174,10 @@ export function Prompt(props: PromptProps) {
                       <text>
                         <span style={{ fg: theme.warning, bold: true }}>MUX ON</span>
                       </text>
+                      <Show when={local.model.mux.activeKey()}>
+                        <text fg={theme.textMuted}>·</text>
+                        <text fg={theme.textMuted}>{local.model.mux.activeKey()?.label}</text>
+                      </Show>
                     </Show>
                     <Show when={showVariant()}>
                       <text fg={theme.textMuted}>·</text>

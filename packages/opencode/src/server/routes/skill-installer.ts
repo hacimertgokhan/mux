@@ -137,6 +137,10 @@ export const SkillInstallerRoutes = lazy(() =>
           url?: string
           scope?: Installer.InstallScope
         }>()
+        if (body.url && Installer.isMarkdownUrl(body.url)) {
+          const result = await Installer.installFromUrl(body.url, { scope: body.scope })
+          return c.json(result)
+        }
         const pair =
           body.owner && body.repo ? { owner: body.owner, repo: body.repo } : body.url ? repo(body.url) : undefined
         if (!pair) {

@@ -23,6 +23,10 @@ function repo(input: string) {
   }
 }
 
+function md(input: string) {
+  return /^https?:\/\/\S+\.md(?:[?#].*)?$/i.test(input.trim())
+}
+
 function slug(input: string) {
   const text = input
     .trim()
@@ -62,7 +66,7 @@ export function DialogSkillInstaller() {
     {
       title: "Add Repository URL",
       value: "add-url",
-      description: "Install skills from a direct URL",
+      description: "Install skills from a repo or markdown URL",
       category: "Discover",
       onSelect: async () => {
         const where = await scope(dialog)
@@ -72,21 +76,22 @@ export function DialogSkillInstaller() {
         })
         if (!url) return
         const pair = repo(url)
-        if (!pair) {
-          await DialogAlert.show(dialog, "Invalid URL", "Please enter a valid GitHub repository URL.")
+        if (!pair && !md(url)) {
+          await DialogAlert.show(dialog, "Invalid URL", "Use a GitHub repo URL or a direct .md URL.")
           return
         }
+        const body = pair ? { owner: pair.owner, repo: pair.repo, url, scope: where } : { url, scope: where }
         const baseUrl = sdk.url.replace(/\/$/, "")
         const res = await fetch(`${baseUrl}/skill-installer/install`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ owner: pair.owner, repo: pair.repo, url, scope: where }),
+          body: JSON.stringify(body),
         })
         const data = await res.json()
         if (data?.installed?.length) {
           await DialogAlert.show(dialog, "Skills Installed", `Installed (${where}): ${data.installed.join(", ")}`)
         } else {
-          await DialogAlert.show(dialog, "No Skills Found", `No installable skills found in ${pair.owner}/${pair.repo}.`)
+          await DialogAlert.show(dialog, "No Skills Found", "No installable skills were found at this URL.")
         }
       },
     },

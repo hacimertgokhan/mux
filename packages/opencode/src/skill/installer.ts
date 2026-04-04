@@ -34,6 +34,7 @@ export type SearchResult = {
 }
 
 export type InstallScope = "global" | "project"
+export type InstallResult = { installed: string[]; url: string }
 
 const CURATED = [
   "anthropics/claude-code",
@@ -89,6 +90,14 @@ type GitTreeItem = {
 
 type GitTree = {
   tree?: GitTreeItem[]
+}
+
+type GitMd = {
+  owner: string
+  repo: string
+  branch: string
+  file: string
+  raw: string
 }
 
 function heads(head?: string) {
@@ -157,6 +166,106 @@ async function pullFromTree(owner: string, repo: string, branch: string) {
 
 function unique(list: string[]) {
   return [...new Set(list)]
+}
+
+function slug(input: string) {
+  const text = input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return text || "custom-skill"
+}
+
+function cleanUrl(input: string) {
+  return input.trim().replace(/[?#].*$/, "")
+}
+
+export function isMarkdownUrl(input: string) {
+  const url = cleanUrl(input)
+  return /^https?:\/\/\S+\.md$/i.test(url)
+}
+
+function parseGitMd(input: string): GitMd | null {
+  const url = cleanUrl(input)
+  const blob = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+\.md)$/i)
+  if (blob) {
+    const owner = blob[1]
+    const repo = blob[2].replace(/\.git$/i, "")
+    const branch = blob[3]
+    const file = blob[4]
+    return {
+      owner,
+      repo,
+      branch,
+      file,
+      raw: `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file}`,
+    }
+  }
+
+  const raw = url.match(/^https?:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+\.md)$/i)
+  if (raw) {
+    return {
+      owner: raw[1],
+      repo: raw[2].replace(/\.git$/i, ""),
+      branch: raw[3],
+      file: raw[4],
+      raw: url,
+    }
+  }
+
+  return null
+}
+
+async function pullRoot(owner: string, repo: string, branch: string, root: string) {
+  const tree = await gh<GitTree>(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`)
+  const list = tree?.tree ?? []
+  const files = list
+    .filter((item) => item.type === "blob" && (item.path === `${root}/SKILL.md` || item.path.startsWith(root + "/")))
+    .map((item) => item.path)
+  if (!files.includes(`${root}/SKILL.md`)) return null
+
+  const dir = path.join(Global.Path.cache, "skills", path.basename(root))
+  for (const file of files) {
+    const rel = file.slice(root.length + 1)
+    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file}`
+    const res = await fetch(url)
+    if (!res.ok) continue
+    const body = await res.arrayBuffer()
+    await Filesystem.write(path.join(dir, rel), new Uint8Array(body))
+  }
+
+  return (await Filesystem.exists(path.join(dir, "SKILL.md"))) ? dir : null
+}
+
+async function apply(scope: InstallScope, dirs: string[], url: string) {
+  if (scope === "project") {
+    const cfg = await Config.get()
+    const paths = unique([...(cfg.skills?.paths ?? []), ...dirs])
+    await Config.update({
+      ...cfg,
+      skills: { ...cfg.skills, paths },
+    })
+  } else {
+    const cfg = await Config.getGlobal()
+    const paths = unique([...(cfg.skills?.paths ?? []), ...(url ? [] : dirs)])
+    const old = cfg.skills?.urls ?? []
+    const norm = url.replace(/\/+$/, "")
+    const legacy = norm.replace("https://raw.githubusercontent.com/", "https://")
+    const has = old.some((item) => {
+      const next = item.replace(/\/+$/, "")
+      return next === norm || next === legacy
+    })
+    const urls = url && !has ? [...old, url] : old
+    await Config.updateGlobal({
+      ...cfg,
+      skills: { ...cfg.skills, urls, paths },
+    })
+  }
+
+  const names = dirs.map((dir) => path.basename(dir))
+  log.info("installed skills", { count: names.length, names })
+  return names
 }
 
 export async function search(query: string, page = 1): Promise<SearchResult> {
@@ -258,7 +367,7 @@ export async function install(
   owner: string,
   repo: string,
   input?: { scope?: InstallScope },
-): Promise<{ installed: string[]; url: string }> {
+): Promise<InstallResult> {
   const discovery = await getDiscovery()
   if (!discovery) {
     log.error("discovery service unavailable")
@@ -296,33 +405,30 @@ export async function install(
     }
   }
 
-  if (scope === "project") {
-    const cfg = await Config.get()
-    const paths = unique([...(cfg.skills?.paths ?? []), ...pulledDirs])
-    await Config.update({
-      ...cfg,
-      skills: { ...cfg.skills, paths },
-    })
-  } else {
-    const cfg = await Config.getGlobal()
-    const paths = unique([...(cfg.skills?.paths ?? []), ...(workingUrl ? [] : pulledDirs)])
-    const existingUrls = cfg.skills?.urls ?? []
-    const normalized = workingUrl.replace(/\/+$/, "")
-    const legacy = normalized.replace("https://raw.githubusercontent.com/", "https://")
-    const exists = existingUrls.some((item) => {
-      const next = item.replace(/\/+$/, "")
-      return next === normalized || next === legacy
-    })
-    const urls = workingUrl && !exists ? [...existingUrls, workingUrl] : existingUrls
-    await Config.updateGlobal({
-      ...cfg,
-      skills: { ...cfg.skills, urls, paths },
-    })
+  return { installed: await apply(scope, pulledDirs, workingUrl), url: workingUrl }
+}
+
+export async function installFromUrl(url: string, input?: { scope?: InstallScope }): Promise<InstallResult> {
+  const scope = input?.scope ?? "global"
+  if (!isMarkdownUrl(url)) return { installed: [], url: "" }
+
+  const hit = parseGitMd(url)
+  if (hit && path.basename(hit.file).toLowerCase() === "skill.md") {
+    const dir = await pullRoot(hit.owner, hit.repo, hit.branch, path.dirname(hit.file))
+    if (dir) return { installed: await apply(scope, [dir], ""), url: cleanUrl(url) }
   }
 
-  const names = pulledDirs.map((d) => path.basename(d))
-  log.info("installed skills", { count: names.length, names })
-  return { installed: names, url: workingUrl }
+  const src = hit?.raw ?? cleanUrl(url)
+  const res = await fetch(src)
+  if (!res.ok) return { installed: [], url: "" }
+  const body = await res.arrayBuffer()
+  const file = src.split("/").pop() ?? "skill.md"
+  const stem = file.replace(/\.md$/i, "")
+  const name = slug(stem.toLowerCase() === "skill" && hit ? path.basename(path.dirname(hit.file)) : stem)
+  const dir = path.join(Global.Path.cache, "skills", name)
+  await Filesystem.write(path.join(dir, "SKILL.md"), new Uint8Array(body))
+  if (!(await Filesystem.exists(path.join(dir, "SKILL.md")))) return { installed: [], url: "" }
+  return { installed: await apply(scope, [dir], ""), url: cleanUrl(url) }
 }
 
 export async function installedRepos(): Promise<string[]> {
