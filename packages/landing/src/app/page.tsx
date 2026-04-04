@@ -153,6 +153,7 @@ export default function Home() {
   const [phase, setPhase] = useState<"x" | "mux" | "site">("x")
   const [rows, setRows] = useState<{ k: string; t: string }[]>([])
   const [done, setDone] = useState(false)
+  const [donePs, setDonePs] = useState(false)
   const [pt, setPt] = useState({ x: 0.5, y: 0.5 })
 
   useEffect(() => {
@@ -204,10 +205,18 @@ export default function Home() {
 
   const copy = () => {
     navigator.clipboard.writeText(
-      "curl -fsSL https://raw.githubusercontent.com/hacimertgokhan/opencode-mux/dev/install | bash",
+      "curl -fsSL https://raw.githubusercontent.com/hacimertgokhan/opencode-mux/main/install | bash",
     )
     setDone(true)
     setTimeout(() => setDone(false), 1800)
+  }
+
+  const copyPs = () => {
+    navigator.clipboard.writeText(
+      "irm https://raw.githubusercontent.com/hacimertgokhan/opencode-mux/main/install-mux.ps1 | iex",
+    )
+    setDonePs(true)
+    setTimeout(() => setDonePs(false), 1800)
   }
 
   return (
@@ -250,9 +259,7 @@ export default function Home() {
         <section className="hero">
           <p className="eyebrow">Smart routing layer for OpenCode</p>
           <h1 className="title">Less noise. Clearer flow.</h1>
-          <p className="sub">
-            Mux balances multiple API keys and models for you, so you stay focused on writing code.
-          </p>
+          <p className="sub">Mux balances multiple API keys and models for you, so you stay focused on writing code.</p>
           <div className="hero-row">
             <a href="#playground" className="btn btn-solid">
               Live demo

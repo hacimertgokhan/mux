@@ -65,7 +65,9 @@ footer {
   z-index: 1;
   background: radial-gradient(circle, rgba(15, 138, 95, 0.14) 0%, transparent 68%);
   transform: translate(-50%, -50%);
-  transition: left 0.25s ease, top 0.25s ease;
+  transition:
+    left 0.25s ease,
+    top 0.25s ease;
 }
 
 .intro {
@@ -512,7 +514,12 @@ footer {
 .flow .line {
   height: 2px;
   border-radius: 99px;
-  background: linear-gradient(90deg, rgba(15, 138, 95, 0.25) 0%, rgba(15, 138, 95, 0.7) 40%, rgba(15, 23, 32, 0.2) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(15, 138, 95, 0.25) 0%,
+    rgba(15, 138, 95, 0.7) 40%,
+    rgba(15, 23, 32, 0.2) 100%
+  );
   animation: run 1.2s linear infinite;
 }
 
@@ -533,7 +540,10 @@ footer {
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .dot {
@@ -573,6 +583,77 @@ footer {
 
 .feat-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+}
+
+.feat-grid > .reveal {
+  height: 100%;
+}
+
+.feat {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.install-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.install-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--rad);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.install-badge {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--acc);
+}
+
+.install-cmd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0f1b26;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.install-cmd code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #cfdae5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.install-copy {
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.install-copy:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .step-grid {
@@ -654,7 +735,9 @@ footer {
 .reveal {
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 0.45s ease, transform 0.45s ease;
+  transition:
+    opacity 0.45s ease,
+    transform 0.45s ease;
 }
 
 .reveal.show {
@@ -723,6 +806,23 @@ footer {
   }
 
   .split {
+    grid-template-columns: 1fr;
+  }
+
+  .install-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+  .step-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .install-grid {
     grid-template-columns: 1fr;
   }
 }
