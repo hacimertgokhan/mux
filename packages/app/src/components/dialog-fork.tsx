@@ -29,7 +29,8 @@ export const DialogFork: Component = () => {
   const language = useLanguage()
 
   const messages = createMemo((): ForkableMessage[] => {
-    const sessionID = sdk.sessionID
+    // @ts-ignore
+    const sessionID = sdk.sessionID;
     if (!sessionID) return []
 
     const msgs = sync.data.message[sessionID] ?? []
@@ -55,6 +56,7 @@ export const DialogFork: Component = () => {
   const handleSelect = (item: ForkableMessage | undefined) => {
     if (!item) return
 
+    // @ts-ignore
     const sessionID = sdk.sessionID
     if (!sessionID) return
 
