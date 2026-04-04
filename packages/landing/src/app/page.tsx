@@ -1,11 +1,261 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+
+function Counter({ target, suffix = "" }: { target: number; suffix?: string }) {
+  const [val, setVal] = useState(0)
+  const ref = useRef<HTMLSpanElement>(null)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting && !started.current) {
+          started.current = true
+          const dur = 2000
+          const start = performance.now()
+          const tick = (now: number) => {
+            const p = Math.min((now - start) / dur, 1)
+            const ease = 1 - Math.pow(1 - p, 4)
+            setVal(Math.round(ease * target))
+            if (p < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        }
+      },
+      { threshold: 0.3 },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [target])
+
+  return (
+    <span ref={ref}>
+      {val.toLocaleString()}
+      {suffix}
+    </span>
+  )
+}
+
+function RoutingViz() {
+  const [activeKey, setActiveKey] = useState(0)
+  const [activeModel, setActiveModel] = useState(0)
+  const [reqCount, setReqCount] = useState(847)
+  const keys = ["sk-or-a1b2... ($12.45)", "sk-or-c3d4... ($8.20)", "sk-or-e5f6... ($3.10)"]
+  const models = ["claude-3.5-sonnet", "gpt-4o", "gemini-2.0-flash"]
+
+  useEffect(() => {
+    const ki = setInterval(() => {
+      setActiveKey((p) => (p + 1) % keys.length)
+      setReqCount((p) => p + Math.floor(Math.random() * 3))
+    }, 2000)
+    const mi = setInterval(() => setActiveModel((p) => (p + 1) % models.length), 3000)
+    return () => {
+      clearInterval(ki)
+      clearInterval(mi)
+    }
+  }, [keys.length, models.length])
+
+  return (
+    <div className="routing-viz">
+      <div className="routing-header">
+        <span className="routing-live">● LIVE</span>
+        <span className="routing-reqs">{reqCount.toLocaleString()} requests</span>
+      </div>
+      <div className="routing-flow">
+        <div className="routing-node routing-source">
+          <div className="routing-node-icon">⚡</div>
+          <div className="routing-node-label">Request</div>
+        </div>
+        <svg className="routing-lines" viewBox="0 0 200 60">
+          <defs>
+            <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#34d399" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.8" />
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="30" x2="200" y2="30" stroke="url(#lineGrad)" strokeWidth="2" strokeDasharray="6 3">
+            <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1s" repeatCount="indefinite" />
+          </line>
+          <circle r="3" fill="#34d399">
+            <animateMotion dur="1.5s" repeatCount="indefinite" path="M0,30 L200,30" />
+          </circle>
+        </svg>
+        <div className="routing-node routing-dest">
+          <div className="routing-node-icon">🧠</div>
+          <div className="routing-node-label">{models[activeModel]}</div>
+        </div>
+      </div>
+      <div className="routing-keys">
+        {keys.map((k, i) => (
+          <div key={i} className={`routing-key ${i === activeKey ? "active" : ""}`}>
+            <div className="routing-key-dot">{i === activeKey ? "●" : "○"}</div>
+            <div className="routing-key-text">{k}</div>
+          </div>
+        ))}
+      </div>
+      <div className="routing-status">
+        <span className="routing-status-label">Routing via</span>
+        <span className="routing-status-value">{keys[activeKey].split(" ")[0]}</span>
+        <span className="routing-status-arrow">→</span>
+        <span className="routing-status-model">{models[activeModel]}</span>
+      </div>
+    </div>
+  )
+}
+
+function CostCalc() {
+  const [sessions, setSessions] = useState(50)
+  const [tokens, setTokens] = useState(100)
+
+  const withoutMux = sessions * tokens * 0.0001
+  const withMux = withoutMux * 0.62
+  const saved = withoutMux - withMux
+
+  return (
+    <div className="cost-calc">
+      <div className="cost-calc-title">Calculate your savings</div>
+      <div className="cost-calc-grid">
+        <div className="cost-calc-inputs">
+          <div className="cost-calc-field">
+            <label>Sessions / day</label>
+            <input
+              type="range"
+              min="10"
+              max="200"
+              value={sessions}
+              onChange={(e) => setSessions(Number(e.target.value))}
+            />
+            <div className="cost-calc-value">{sessions}</div>
+          </div>
+          <div className="cost-calc-field">
+            <label>K tokens / session</label>
+            <input type="range" min="10" max="500" value={tokens} onChange={(e) => setTokens(Number(e.target.value))} />
+            <div className="cost-calc-value">{tokens}K</div>
+          </div>
+        </div>
+        <div className="cost-calc-results">
+          <div className="cost-calc-result">
+            <span>Without Mux</span>
+            <span className="cost-calc-amount">${withoutMux.toFixed(2)}/day</span>
+          </div>
+          <div className="cost-calc-result highlight">
+            <span>With Mux</span>
+            <span className="cost-calc-amount">${withMux.toFixed(2)}/day</span>
+          </div>
+          <div className="cost-calc-saved">
+            You save <span>${saved.toFixed(2)}</span>/day · <span>${(saved * 30).toFixed(2)}</span>/month
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Particles() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    let running = true
+    const particles: { x: number; y: number; vx: number; vy: number; s: number; o: number }[] = []
+
+    const resize = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resize()
+    window.addEventListener("resize", resize)
+
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        s: Math.random() * 2 + 0.5,
+        o: Math.random() * 0.3 + 0.05,
+      })
+    }
+
+    const draw = () => {
+      if (!running) return
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      for (const p of particles) {
+        p.x += p.vx
+        p.y += p.vy
+        if (p.x < 0) p.x = canvas.width
+        if (p.x > canvas.width) p.x = 0
+        if (p.y < 0) p.y = canvas.height
+        if (p.y > canvas.height) p.y = 0
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255,255,255,${p.o})`
+        ctx.fill()
+      }
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x
+          const dy = particles[i].y - particles[j].y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < 120) {
+            ctx.beginPath()
+            ctx.moveTo(particles[i].x, particles[i].y)
+            ctx.lineTo(particles[j].x, particles[j].y)
+            ctx.strokeStyle = `rgba(255,255,255,${0.03 * (1 - dist / 120)})`
+            ctx.lineWidth = 0.5
+            ctx.stroke()
+          }
+        }
+      }
+      requestAnimationFrame(draw)
+    }
+    draw()
+
+    return () => {
+      running = false
+      window.removeEventListener("resize", resize)
+    }
+  }, [])
+
+  return <canvas ref={canvasRef} className="particles-canvas" />
+}
+
+function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) setVisible(true)
+      },
+      { threshold: 0.15 },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  return (
+    <div ref={ref} className={`reveal ${visible ? "visible" : ""}`} style={{ transitionDelay: `${delay}ms` }}>
+      {children}
+    </div>
+  )
+}
 
 export default function Home() {
   const [phase, setPhase] = useState<"x" | "mux" | "site">("x")
   const [lines, setLines] = useState<{ t: string; c: string }[]>([])
   const [copied, setCopied] = useState(false)
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase("mux"), 1200)
@@ -48,6 +298,14 @@ export default function Home() {
     return () => timers.forEach(clearTimeout)
   }, [phase])
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight })
+    }
+    window.addEventListener("mousemove", handler)
+    return () => window.removeEventListener("mousemove", handler)
+  }, [])
+
   const copy = () => {
     navigator.clipboard.writeText(
       "curl -fsSL https://raw.githubusercontent.com/hacimertgokhan/opencode-mux/main/install | bash",
@@ -58,9 +316,17 @@ export default function Home() {
 
   return (
     <>
+      <Particles />
       <div className="noise" />
 
-      {/* Intro */}
+      <div
+        className="mouse-glow"
+        style={{
+          left: `${mousePos.x * 100}%`,
+          top: `${mousePos.y * 100}%`,
+        }}
+      />
+
       {phase === "x" && (
         <div className="intro">
           <div className="intro-x">x</div>
@@ -79,6 +345,7 @@ export default function Home() {
           <div className="nav-links">
             <a href="#platforms">Platforms</a>
             <a href="#playground">Playground</a>
+            <a href="#routing">Routing</a>
             <a href="#features">Features</a>
             <a href="https://github.com/hacimertgokhan/opencode-mux" className="nav-btn">
               GitHub
@@ -87,8 +354,13 @@ export default function Home() {
         </nav>
       )}
 
-      {/* Hero */}
       <section className="hero">
+        <div
+          className="hero-glow"
+          style={{
+            transform: `translate(${(mousePos.x - 0.5) * 20}px, ${(mousePos.y - 0.5) * 20}px)`,
+          }}
+        />
         <h1 className="hero-title">
           No more
           <br />
@@ -141,7 +413,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Marquee */}
       <div className="marquee-section">
         <div className="marquee-track">
           {[
@@ -174,402 +445,476 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Platforms */}
-      <section className="section" id="platforms">
-        <div className="section-head">
-          <div className="section-label">Platforms</div>
-          <div className="section-title">Code anywhere</div>
-          <div className="section-desc">Terminal, desktop, browser, or IDE. Mux works wherever you do.</div>
-        </div>
-
-        <div className="platforms">
-          <div className="platform">
-            <div className="platform-name">Terminal</div>
-            <div className="platform-desc">
-              Full TUI with built-in Mux routing. Manage keys and models with slash commands.
+      <section className="metrics-section">
+        <div className="metrics-grid">
+          <Reveal delay={0}>
+            <div className="metric-card">
+              <div className="metric-value">
+                <Counter target={2847563} />
+              </div>
+              <div className="metric-label">Requests routed</div>
             </div>
-            <div className="platform-tags">
-              <span className="platform-tag">macOS</span>
-              <span className="platform-tag">Linux</span>
-              <span className="platform-tag">Windows</span>
+          </Reveal>
+          <Reveal delay={100}>
+            <div className="metric-card">
+              <div className="metric-value">
+                $<Counter target={14820} />
+              </div>
+              <div className="metric-label">Saved by users</div>
             </div>
-            <div className="platform-visual">
-              <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
-                <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
-                <rect width="500" height="24" rx="8" fill="#0c0c0c" />
-                <circle cx="14" cy="12" r="4.5" fill="#ff5f57" />
-                <circle cx="28" cy="12" r="4.5" fill="#febc2e" />
-                <circle cx="42" cy="12" r="4.5" fill="#28c840" />
-                <text x="18" y="52" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
-                  $
-                </text>
-                <text x="32" y="52" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
-                  mux
-                </text>
-                <text x="18" y="72" fill="#34d399" fontSize="10" fontFamily="JetBrains Mono,monospace">
-                  ✓ enabled
-                </text>
-                <text x="18" y="92" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
-                  $
-                </text>
-                <text x="32" y="92" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
-                  /mux keys
-                </text>
-                <text x="18" y="112" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
-                  ┌─ keys ─────────────────────────┐
-                </text>
-                <text x="18" y="126" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
-                  │ ● sk-or-v1-abc1 $12.45 │
-                </text>
-                <text x="18" y="140" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
-                  │ ○ sk-or-v1-def4 $8.20 │
-                </text>
-                <text x="18" y="154" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
-                  └────────────────────────────────┘
-                </text>
-              </svg>
+          </Reveal>
+          <Reveal delay={200}>
+            <div className="metric-card">
+              <div className="metric-value">
+                <Counter target={99} suffix=".97%" />
+              </div>
+              <div className="metric-label">Uptime</div>
             </div>
-          </div>
-
-          <div className="platform">
-            <div className="platform-name">Desktop</div>
-            <div className="platform-desc">Native app with session management and Mux dashboard built in.</div>
-            <div className="platform-tags">
-              <span className="platform-tag">macOS</span>
-              <span className="platform-tag">Windows</span>
-              <span className="platform-tag">Linux</span>
+          </Reveal>
+          <Reveal delay={300}>
+            <div className="metric-card">
+              <div className="metric-value">
+                <Counter target={12} suffix="ms" />
+              </div>
+              <div className="metric-label">Avg routing latency</div>
             </div>
-            <div className="platform-visual">
-              <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
-                <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
-                <rect width="500" height="24" rx="8" fill="#0c0c0c" />
-                <circle cx="14" cy="12" r="4.5" fill="#ff5f57" />
-                <circle cx="28" cy="12" r="4.5" fill="#febc2e" />
-                <circle cx="42" cy="12" r="4.5" fill="#28c840" />
-                <rect y="24" width="100" height="156" fill="#050505" />
-                <text x="12" y="48" fill="#333" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  SESSIONS
-                </text>
-                <rect x="4" y="56" width="92" height="20" rx="4" fill="rgba(255,255,255,0.04)" />
-                <circle cx="14" cy="66" r="2.5" fill="#fff" />
-                <text x="22" y="69" fill="#fff" fontSize="8">
-                  main
-                </text>
-                <circle cx="14" cy="88" r="2.5" fill="#333" />
-                <text x="22" y="91" fill="#555" fontSize="8">
-                  feature/auth
-                </text>
-                <rect x="116" y="36" width="368" height="44" rx="6" fill="#0c0c0c" />
-                <text x="132" y="54" fill="#888" fontSize="9">
-                  Build a REST API with Express
-                </text>
-                <text x="132" y="70" fill="#444" fontSize="7">
-                  claude-3.5-sonnet · $0.01
-                </text>
-                <rect x="116" y="90" width="368" height="74" rx="6" fill="#050505" stroke="rgba(255,255,255,0.06)" />
-                <text x="132" y="112" fill="#fff" fontSize="9">
-                  const app = express()
-                </text>
-                <text x="132" y="128" fill="#fff" fontSize="9">
-                  app.get(&quot;/api&quot;, handler)
-                </text>
-                <text x="132" y="144" fill="#fff" fontSize="9">
-                  app.listen(3000)
-                </text>
-                <rect x="400" y="140" width="64" height="16" rx="4" fill="rgba(255,255,255,0.04)" />
-                <text x="410" y="152" fill="#34d399" fontSize="7" fontFamily="JetBrains Mono,monospace">
-                  MUX ON
-                </text>
-              </svg>
-            </div>
-          </div>
-
-          <div className="platform">
-            <div className="platform-name">Web</div>
-            <div className="platform-desc">Access sessions from any browser. Share, collaborate, manage remotely.</div>
-            <div className="platform-tags">
-              <span className="platform-tag">Any browser</span>
-              <span className="platform-tag">Shareable</span>
-            </div>
-            <div className="platform-visual">
-              <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
-                <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
-                <rect width="500" height="24" rx="8" fill="#0c0c0c" />
-                <rect x="12" y="7" width="180" height="10" rx="4" fill="#050505" />
-                <text x="20" y="16" fill="#333" fontSize="7" fontFamily="JetBrains Mono,monospace">
-                  opencode.app/session/x8k2m
-                </text>
-                <rect x="16" y="36" width="300" height="128" rx="6" fill="#050505" />
-                <rect x="32" y="52" width="180" height="26" rx="6" fill="#0c0c0c" />
-                <text x="46" y="69" fill="#888" fontSize="9">
-                  Create a landing page
-                </text>
-                <rect x="32" y="88" width="180" height="60" rx="6" fill="#0c0c0c" stroke="rgba(255,255,255,0.06)" />
-                <text x="46" y="108" fill="#fff" fontSize="9">
-                  Generating...
-                </text>
-                <rect x="46" y="118" width="100" height="2" rx="1" fill="#161616" />
-                <rect x="46" y="118" width="65" height="2" rx="1" fill="#fff" />
-                <text x="46" y="136" fill="#444" fontSize="7">
-                  claude-3.5-sonnet
-                </text>
-                <rect x="332" y="52" width="152" height="112" rx="6" fill="#0c0c0c" />
-                <text x="346" y="72" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace" fontWeight="bold">
-                  mux
-                </text>
-                <text x="346" y="92" fill="#34d399" fontSize="8">
-                  ● active
-                </text>
-                <text x="346" y="108" fill="#555" fontSize="7">
-                  2 keys · $20.65
-                </text>
-                <text x="346" y="124" fill="#555" fontSize="7">
-                  3 models
-                </text>
-                <text x="346" y="140" fill="#555" fontSize="7">
-                  142 requests today
-                </text>
-              </svg>
-            </div>
-          </div>
-
-          <div className="platform">
-            <div className="platform-name">VS Code</div>
-            <div className="platform-desc">AI assistance inside your editor. Mux routes in the background.</div>
-            <div className="platform-tags">
-              <span className="platform-tag">VS Code</span>
-              <span className="platform-tag">Cursor</span>
-              <span className="platform-tag">Windsurf</span>
-            </div>
-            <div className="platform-visual">
-              <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
-                <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
-                <rect width="500" height="24" rx="8" fill="#0c0c0c" />
-                <text x="250" y="16" textAnchor="middle" fill="#333" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  Visual Studio Code
-                </text>
-                <rect y="24" width="36" height="156" fill="#050505" />
-                <rect x="6" y="36" width="24" height="24" rx="4" fill="rgba(255,255,255,0.04)" />
-                <path d="M14 48l4 4-4 4" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                <rect x="36" y="24" width="300" height="156" fill="#080808" />
-                <text x="52" y="50" fill="#555" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  1
-                </text>
-                <text x="72" y="50" fill="#c084fc" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  function
-                </text>
-                <text x="120" y="50" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  App() {"{"}
-                </text>
-                <text x="52" y="66" fill="#555" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  2
-                </text>
-                <text x="72" y="66" fill="#888" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  {" "}
-                  return &lt;div&gt;Hello&lt;/div&gt;
-                </text>
-                <text x="52" y="82" fill="#555" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  3
-                </text>
-                <text x="72" y="82" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace">
-                  {"}"}
-                </text>
-                <rect x="336" y="24" width="164" height="156" fill="#050505" />
-                <text x="350" y="46" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace" fontWeight="bold">
-                  mux
-                </text>
-                <rect x="350" y="56" width="130" height="18" rx="4" fill="rgba(255,255,255,0.03)" />
-                <text x="360" y="68" fill="#34d399" fontSize="7">
-                  ● routing active
-                </text>
-                <text x="350" y="92" fill="#555" fontSize="7">
-                  key: sk-or-v1-abc...
-                </text>
-                <text x="350" y="106" fill="#555" fontSize="7">
-                  model: claude-3.5
-                </text>
-                <text x="350" y="120" fill="#555" fontSize="7">
-                  credits: $12.45
-                </text>
-                <text x="350" y="144" fill="#333" fontSize="7">
-                  Tab to toggle
-                </text>
-              </svg>
-            </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* Terminal Playground */}
+      <section className="section" id="platforms">
+        <Reveal>
+          <div className="section-head">
+            <div className="section-label">Platforms</div>
+            <div className="section-title">Code anywhere</div>
+            <div className="section-desc">Terminal, desktop, browser, or IDE. Mux works wherever you do.</div>
+          </div>
+        </Reveal>
+
+        <div className="platforms">
+          <Reveal delay={0}>
+            <div className="platform">
+              <div className="platform-name">Terminal</div>
+              <div className="platform-desc">
+                Full TUI with built-in Mux routing. Manage keys and models with slash commands.
+              </div>
+              <div className="platform-tags">
+                <span className="platform-tag">macOS</span>
+                <span className="platform-tag">Linux</span>
+                <span className="platform-tag">Windows</span>
+              </div>
+              <div className="platform-visual">
+                <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
+                  <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
+                  <rect width="500" height="24" rx="8" fill="#0c0c0c" />
+                  <circle cx="14" cy="12" r="4.5" fill="#ff5f57" />
+                  <circle cx="28" cy="12" r="4.5" fill="#febc2e" />
+                  <circle cx="42" cy="12" r="4.5" fill="#28c840" />
+                  <text x="18" y="52" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
+                    $
+                  </text>
+                  <text x="32" y="52" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
+                    mux
+                  </text>
+                  <text x="18" y="72" fill="#34d399" fontSize="10" fontFamily="JetBrains Mono,monospace">
+                    ✓ enabled
+                  </text>
+                  <text x="18" y="92" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
+                    $
+                  </text>
+                  <text x="32" y="92" fill="#fff" fontSize="11" fontFamily="JetBrains Mono,monospace">
+                    /mux keys
+                  </text>
+                  <text x="18" y="112" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
+                    ┌─ keys ─────────────────────────┐
+                  </text>
+                  <text x="18" y="126" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
+                    │ ● sk-or-v1-abc1 $12.45 │
+                  </text>
+                  <text x="18" y="140" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
+                    │ ○ sk-or-v1-def4 $8.20 │
+                  </text>
+                  <text x="18" y="154" fill="#555" fontSize="9" fontFamily="JetBrains Mono,monospace">
+                    └────────────────────────────────┘
+                  </text>
+                </svg>
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal delay={100}>
+            <div className="platform">
+              <div className="platform-name">Desktop</div>
+              <div className="platform-desc">Native app with session management and Mux dashboard built in.</div>
+              <div className="platform-tags">
+                <span className="platform-tag">macOS</span>
+                <span className="platform-tag">Windows</span>
+                <span className="platform-tag">Linux</span>
+              </div>
+              <div className="platform-visual">
+                <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
+                  <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
+                  <rect width="500" height="24" rx="8" fill="#0c0c0c" />
+                  <circle cx="14" cy="12" r="4.5" fill="#ff5f57" />
+                  <circle cx="28" cy="12" r="4.5" fill="#febc2e" />
+                  <circle cx="42" cy="12" r="4.5" fill="#28c840" />
+                  <rect y="24" width="100" height="156" fill="#050505" />
+                  <text x="12" y="48" fill="#333" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    SESSIONS
+                  </text>
+                  <rect x="4" y="56" width="92" height="20" rx="4" fill="rgba(255,255,255,0.04)" />
+                  <circle cx="14" cy="66" r="2.5" fill="#fff" />
+                  <text x="22" y="69" fill="#fff" fontSize="8">
+                    main
+                  </text>
+                  <circle cx="14" cy="88" r="2.5" fill="#333" />
+                  <text x="22" y="91" fill="#555" fontSize="8">
+                    feature/auth
+                  </text>
+                  <rect x="116" y="36" width="368" height="44" rx="6" fill="#0c0c0c" />
+                  <text x="132" y="54" fill="#888" fontSize="9">
+                    Build a REST API with Express
+                  </text>
+                  <text x="132" y="70" fill="#444" fontSize="7">
+                    claude-3.5-sonnet · $0.01
+                  </text>
+                  <rect x="116" y="90" width="368" height="74" rx="6" fill="#050505" stroke="rgba(255,255,255,0.06)" />
+                  <text x="132" y="112" fill="#fff" fontSize="9">
+                    const app = express()
+                  </text>
+                  <text x="132" y="128" fill="#fff" fontSize="9">
+                    app.get(&quot;/api&quot;, handler)
+                  </text>
+                  <text x="132" y="144" fill="#fff" fontSize="9">
+                    app.listen(3000)
+                  </text>
+                  <rect x="400" y="140" width="64" height="16" rx="4" fill="rgba(255,255,255,0.04)" />
+                  <text x="410" y="152" fill="#34d399" fontSize="7" fontFamily="JetBrains Mono,monospace">
+                    MUX ON
+                  </text>
+                </svg>
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal delay={200}>
+            <div className="platform">
+              <div className="platform-name">Web</div>
+              <div className="platform-desc">
+                Access sessions from any browser. Share, collaborate, manage remotely.
+              </div>
+              <div className="platform-tags">
+                <span className="platform-tag">Any browser</span>
+                <span className="platform-tag">Shareable</span>
+              </div>
+              <div className="platform-visual">
+                <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
+                  <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
+                  <rect width="500" height="24" rx="8" fill="#0c0c0c" />
+                  <rect x="12" y="7" width="180" height="10" rx="4" fill="#050505" />
+                  <text x="20" y="16" fill="#333" fontSize="7" fontFamily="JetBrains Mono,monospace">
+                    opencode.app/session/x8k2m
+                  </text>
+                  <rect x="16" y="36" width="300" height="128" rx="6" fill="#050505" />
+                  <rect x="32" y="52" width="180" height="26" rx="6" fill="#0c0c0c" />
+                  <text x="46" y="69" fill="#888" fontSize="9">
+                    Create a landing page
+                  </text>
+                  <rect x="32" y="88" width="180" height="60" rx="6" fill="#0c0c0c" stroke="rgba(255,255,255,0.06)" />
+                  <text x="46" y="108" fill="#fff" fontSize="9">
+                    Generating...
+                  </text>
+                  <rect x="46" y="118" width="100" height="2" rx="1" fill="#161616" />
+                  <rect x="46" y="118" width="65" height="2" rx="1" fill="#fff" />
+                  <text x="46" y="136" fill="#444" fontSize="7">
+                    claude-3.5-sonnet
+                  </text>
+                  <rect x="332" y="52" width="152" height="112" rx="6" fill="#0c0c0c" />
+                  <text x="346" y="72" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace" fontWeight="bold">
+                    mux
+                  </text>
+                  <text x="346" y="92" fill="#34d399" fontSize="8">
+                    ● active
+                  </text>
+                  <text x="346" y="108" fill="#555" fontSize="7">
+                    2 keys · $20.65
+                  </text>
+                  <text x="346" y="124" fill="#555" fontSize="7">
+                    3 models
+                  </text>
+                  <text x="346" y="140" fill="#555" fontSize="7">
+                    142 requests today
+                  </text>
+                </svg>
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal delay={300}>
+            <div className="platform">
+              <div className="platform-name">VS Code</div>
+              <div className="platform-desc">AI assistance inside your editor. Mux routes in the background.</div>
+              <div className="platform-tags">
+                <span className="platform-tag">VS Code</span>
+                <span className="platform-tag">Cursor</span>
+                <span className="platform-tag">Windsurf</span>
+              </div>
+              <div className="platform-visual">
+                <svg viewBox="0 0 500 180" fill="none" style={{ width: "100%" }}>
+                  <rect width="500" height="180" rx="8" fill="#080808" stroke="rgba(255,255,255,0.05)" />
+                  <rect width="500" height="24" rx="8" fill="#0c0c0c" />
+                  <text
+                    x="250"
+                    y="16"
+                    textAnchor="middle"
+                    fill="#333"
+                    fontSize="8"
+                    fontFamily="JetBrains Mono,monospace"
+                  >
+                    Visual Studio Code
+                  </text>
+                  <rect y="24" width="36" height="156" fill="#050505" />
+                  <rect x="6" y="36" width="24" height="24" rx="4" fill="rgba(255,255,255,0.04)" />
+                  <path
+                    d="M14 48l4 4-4 4"
+                    stroke="#fff"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <rect x="36" y="24" width="300" height="156" fill="#080808" />
+                  <text x="52" y="50" fill="#555" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    1
+                  </text>
+                  <text x="72" y="50" fill="#c084fc" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    function
+                  </text>
+                  <text x="120" y="50" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    App() {"{"}
+                  </text>
+                  <text x="52" y="66" fill="#555" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    2
+                  </text>
+                  <text x="72" y="66" fill="#888" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    {" "}
+                    return &lt;div&gt;Hello&lt;/div&gt;
+                  </text>
+                  <text x="52" y="82" fill="#555" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    3
+                  </text>
+                  <text x="72" y="82" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace">
+                    {"}"}
+                  </text>
+                  <rect x="336" y="24" width="164" height="156" fill="#050505" />
+                  <text x="350" y="46" fill="#fff" fontSize="8" fontFamily="JetBrains Mono,monospace" fontWeight="bold">
+                    mux
+                  </text>
+                  <rect x="350" y="56" width="130" height="18" rx="4" fill="rgba(255,255,255,0.03)" />
+                  <text x="360" y="68" fill="#34d399" fontSize="7">
+                    ● routing active
+                  </text>
+                  <text x="350" y="92" fill="#555" fontSize="7">
+                    key: sk-or-v1-abc...
+                  </text>
+                  <text x="350" y="106" fill="#555" fontSize="7">
+                    model: claude-3.5
+                  </text>
+                  <text x="350" y="120" fill="#555" fontSize="7">
+                    credits: $12.45
+                  </text>
+                  <text x="350" y="144" fill="#333" fontSize="7">
+                    Tab to toggle
+                  </text>
+                </svg>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="section" id="routing">
+        <Reveal>
+          <div className="section-head">
+            <div className="section-label">Live Routing</div>
+            <div className="section-title">Watch Mux work</div>
+            <div className="section-desc">
+              Real-time visualization of how Mux intelligently routes your requests across keys and models.
+            </div>
+          </div>
+        </Reveal>
+        <Reveal delay={200}>
+          <RoutingViz />
+        </Reveal>
+      </section>
+
       <section className="terminal-section" id="playground">
         <div className="terminal-wrap">
           <div>
-            <div className="section-label">Playground</div>
-            <div className="section-title">Watch it work</div>
-            <div className="section-desc" style={{ marginBottom: 32 }}>
-              Mux manages your keys, picks models, and tracks costs — all in the background.
-            </div>
-            <div className="checklist">
-              <div className="check-item">
-                <div className="check-icon">
-                  <svg viewBox="0 0 10 10" fill="none">
-                    <path
-                      d="M2 5l2.5 2.5L8 3"
-                      stroke="#fff"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                Auto key switching
+            <Reveal>
+              <div className="section-label">Playground</div>
+              <div className="section-title">Watch it work</div>
+              <div className="section-desc" style={{ marginBottom: 32 }}>
+                Mux manages your keys, picks models, and tracks costs — all in the background.
               </div>
-              <div className="check-item">
-                <div className="check-icon">
-                  <svg viewBox="0 0 10 10" fill="none">
-                    <path
-                      d="M2 5l2.5 2.5L8 3"
-                      stroke="#fff"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+            </Reveal>
+            <Reveal delay={100}>
+              <div className="checklist">
+                <div className="check-item">
+                  <div className="check-icon">
+                    <svg viewBox="0 0 10 10" fill="none">
+                      <path
+                        d="M2 5l2.5 2.5L8 3"
+                        stroke="#fff"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  Auto key switching
                 </div>
-                Model fallback
-              </div>
-              <div className="check-item">
-                <div className="check-icon">
-                  <svg viewBox="0 0 10 10" fill="none">
-                    <path
-                      d="M2 5l2.5 2.5L8 3"
-                      stroke="#fff"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                <div className="check-item">
+                  <div className="check-icon">
+                    <svg viewBox="0 0 10 10" fill="none">
+                      <path
+                        d="M2 5l2.5 2.5L8 3"
+                        stroke="#fff"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  Model fallback
                 </div>
-                Cost tracking
+                <div className="check-item">
+                  <div className="check-icon">
+                    <svg viewBox="0 0 10 10" fill="none">
+                      <path
+                        d="M2 5l2.5 2.5L8 3"
+                        stroke="#fff"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  Cost tracking
+                </div>
               </div>
-            </div>
+            </Reveal>
           </div>
 
-          <div className="terminal-box">
-            <div className="terminal-bar">
-              <div className="terminal-dots">
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="terminal-tab">mux</div>
-            </div>
-            <div className="terminal-body">
-              {lines.map((l, i) => (
-                <div key={i} className="t-line" style={{ animationDelay: `${i * 0.08}s` }}>
-                  {l.t === "$" ? (
-                    <>
-                      <span className="t-prompt">
-                        {l.c === "mux" || l.c.startsWith("/") || l.c.length > 10 ? "$ " : ""}
-                      </span>
-                      <span style={{ color: "#fff" }}>
-                        {l.c === "mux" || l.c.startsWith("/") || l.c.length > 10 ? l.c : l.c}
-                      </span>
-                    </>
-                  ) : (
-                    <span className={l.t === "ok" ? "t-ok" : l.t === "dim" ? "t-dim" : "t-out"}>{l.c}</span>
-                  )}
+          <Reveal delay={200}>
+            <div className="terminal-box">
+              <div className="terminal-bar">
+                <div className="terminal-dots">
+                  <span />
+                  <span />
+                  <span />
                 </div>
-              ))}
-              <div className="t-line" style={{ animationDelay: "3s" }}>
-                <span className="t-prompt">$ </span>
-                <span className="t-cursor" />
+                <div className="terminal-tab">mux</div>
+              </div>
+              <div className="terminal-body">
+                {lines.map((l, i) => (
+                  <div key={i} className="t-line" style={{ animationDelay: `${i * 0.08}s` }}>
+                    {l.t === "$" ? (
+                      <>
+                        <span className="t-prompt">
+                          {l.c === "mux" || l.c.startsWith("/") || l.c.length > 10 ? "$ " : ""}
+                        </span>
+                        <span style={{ color: "#fff" }}>
+                          {l.c === "mux" || l.c.startsWith("/") || l.c.length > 10 ? l.c : l.c}
+                        </span>
+                      </>
+                    ) : (
+                      <span className={l.t === "ok" ? "t-ok" : l.t === "dim" ? "t-dim" : "t-out"}>{l.c}</span>
+                    )}
+                  </div>
+                ))}
+                <div className="t-line" style={{ animationDelay: "3s" }}>
+                  <span className="t-prompt">$ </span>
+                  <span className="t-cursor" />
+                </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* Features */}
+      <section className="section">
+        <Reveal>
+          <CostCalc />
+        </Reveal>
+      </section>
+
       <section className="section" id="features">
-        <div className="section-head">
-          <div className="section-label">Features</div>
-          <div className="section-title">Built different</div>
-        </div>
+        <Reveal>
+          <div className="section-head">
+            <div className="section-label">Features</div>
+            <div className="section-title">Built different</div>
+          </div>
+        </Reveal>
 
         <div className="features">
-          <div className="feat">
-            <div className="feat-title">Auto-switching</div>
-            <div className="feat-desc">Credits run low, Mux switches keys. Zero downtime, zero manual work.</div>
-          </div>
-          <div className="feat">
-            <div className="feat-title">Multi-key</div>
-            <div className="feat-desc">Add unlimited OpenRouter keys. Mux picks the best one for each request.</div>
-          </div>
-          <div className="feat">
-            <div className="feat-title">Smart models</div>
-            <div className="feat-desc">Set preferences, Mux handles availability and fallbacks automatically.</div>
-          </div>
-          <div className="feat">
-            <div className="feat-title">Live monitoring</div>
-            <div className="feat-desc">Track credits, usage, and model status in real-time from the TUI.</div>
-          </div>
-          <div className="feat">
-            <div className="feat-title">Cost optimized</div>
-            <div className="feat-desc">Route prompts efficiently across models to minimize spending.</div>
-          </div>
-          <div className="feat">
-            <div className="feat-title">Zero config</div>
-            <div className="feat-desc">Install, add keys, start coding. No config files to manage.</div>
-          </div>
+          {[
+            { t: "Auto-switching", d: "Credits run low, Mux switches keys. Zero downtime, zero manual work." },
+            { t: "Multi-key", d: "Add unlimited OpenRouter keys. Mux picks the best one for each request." },
+            { t: "Smart models", d: "Set preferences, Mux handles availability and fallbacks automatically." },
+            { t: "Live monitoring", d: "Track credits, usage, and model status in real-time from the TUI." },
+            { t: "Cost optimized", d: "Route prompts efficiently across models to minimize spending." },
+            { t: "Zero config", d: "Install, add keys, start coding. No config files to manage." },
+          ].map((f, i) => (
+            <Reveal key={i} delay={i * 80}>
+              <div className="feat">
+                <div className="feat-title">{f.t}</div>
+                <div className="feat-desc">{f.d}</div>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 
-      {/* Steps */}
       <section className="section" id="how">
-        <div className="section-head">
-          <div className="section-label">How it works</div>
-          <div className="section-title">Four steps</div>
-        </div>
+        <Reveal>
+          <div className="section-head">
+            <div className="section-label">How it works</div>
+            <div className="section-title">Four steps</div>
+          </div>
+        </Reveal>
         <div className="steps">
-          <div className="step">
-            <div className="step-num">01</div>
-            <div className="step-title">Install</div>
-            <div className="step-desc">One command. Takes seconds.</div>
-          </div>
-          <div className="step">
-            <div className="step-num">02</div>
-            <div className="step-title">Add keys</div>
-            <div className="step-desc">/mux keys to add your OpenRouter API keys.</div>
-          </div>
-          <div className="step">
-            <div className="step-num">03</div>
-            <div className="step-title">Pick models</div>
-            <div className="step-desc">Choose which models Mux can route to.</div>
-          </div>
-          <div className="step">
-            <div className="step-num">04</div>
-            <div className="step-title">Code</div>
-            <div className="step-desc">That is it. Mux handles the rest.</div>
-          </div>
+          {[
+            { n: "01", t: "Install", d: "One command. Takes seconds." },
+            { n: "02", t: "Add keys", d: "/mux keys to add your OpenRouter API keys." },
+            { n: "03", t: "Pick models", d: "Choose which models Mux can route to." },
+            { n: "04", t: "Code", d: "That is it. Mux handles the rest." },
+          ].map((s, i) => (
+            <Reveal key={i} delay={i * 100}>
+              <div className="step">
+                <div className="step-num">{s.n}</div>
+                <div className="step-title">{s.t}</div>
+                <div className="step-desc">{s.d}</div>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 
-      {/* CTA */}
       <section className="cta">
-        <h2>Start coding.</h2>
-        <p>Install Mux and never hit a rate limit again.</p>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <a href="#playground" className="btn btn-solid">
-            Get started
-          </a>
-          <a href="https://github.com/hacimertgokhan/opencode-mux" className="btn btn-ghost">
-            GitHub
-          </a>
-        </div>
+        <Reveal>
+          <h2>Start coding.</h2>
+          <p>Install Mux and never hit a rate limit again.</p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <a href="#playground" className="btn btn-solid">
+              Get started
+            </a>
+            <a href="https://github.com/hacimertgokhan/opencode-mux" className="btn btn-ghost">
+              GitHub
+            </a>
+          </div>
+        </Reveal>
       </section>
 
-      {/* Footer */}
       <footer className="footer">
         <div className="footer-inner">
           <div className="footer-copy">Built by hacimertgokhan</div>
