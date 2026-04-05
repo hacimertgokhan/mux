@@ -30,7 +30,7 @@ if [[ "$1" == "--ci" ]]; then
   BUMP_TYPE="${2:-patch}"
   echo "[release] Triggering CI-based release via GitHub Actions..."
   gh workflow run publish.yml -f bump="$BUMP_TYPE"
-  echo "[release] Workflow triggered. Monitor at: https://github.com/hacimertgokhan/opencode-mux/actions"
+  echo "[release] Workflow triggered. Monitor at: https://github.com/anomalyco/opencode/actions"
 else
   echo "[release] Starting local autonomous release..."
   echo "[release] Type: $BUMP_TYPE"

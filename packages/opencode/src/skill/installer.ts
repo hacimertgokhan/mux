@@ -112,7 +112,12 @@ async function gh<T>(url: string): Promise<T | null> {
   return (await res.json()) as T
 }
 
-async function rawFile(owner: string, repo: string, filePath: string, branchList?: string[]): Promise<SkillsIndex | null> {
+async function rawFile(
+  owner: string,
+  repo: string,
+  filePath: string,
+  branchList?: string[],
+): Promise<SkillsIndex | null> {
   for (const branch of branchList ?? ["main", "master"]) {
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`
     const res = await fetch(url)
@@ -122,15 +127,17 @@ async function rawFile(owner: string, repo: string, filePath: string, branchList
 }
 
 function roots(tree: GitTreeItem[]) {
-  return [...new Set(
-    tree
-      .filter((item) => item.type === "blob")
-      .map((item) => item.path)
-      .filter((item) =>
-        /^(?:\.well-known\/skills|skills|\.agents\/skills|\.claude\/skills)\/[^/]+\/SKILL\.md$/.test(item),
-      )
-      .map((item) => item.slice(0, -"/SKILL.md".length)),
-  )]
+  return [
+    ...new Set(
+      tree
+        .filter((item) => item.type === "blob")
+        .map((item) => item.path)
+        .filter((item) =>
+          /^(?:\.well-known\/skills|skills|\.agents\/skills|\.claude\/skills)\/[^/]+\/SKILL\.md$/.test(item),
+        )
+        .map((item) => item.slice(0, -"/SKILL.md".length)),
+    ),
+  ]
 }
 
 async function pullFromTree(owner: string, repo: string, branch: string) {
@@ -363,11 +370,7 @@ export async function inspect(owner: string, repo: string): Promise<GitHubSkill 
   }
 }
 
-export async function install(
-  owner: string,
-  repo: string,
-  input?: { scope?: InstallScope },
-): Promise<InstallResult> {
+export async function install(owner: string, repo: string, input?: { scope?: InstallScope }): Promise<InstallResult> {
   const discovery = await getDiscovery()
   if (!discovery) {
     log.error("discovery service unavailable")
@@ -395,7 +398,9 @@ export async function install(
         workingUrl = url
         break
       }
-    } catch {}
+    } catch (err) {
+      log.warn("discovery pull failed", { url, error: String(err) })
+    }
   }
 
   if (pulledDirs.length === 0) {
@@ -436,7 +441,13 @@ export async function installedRepos(): Promise<string[]> {
   const urls = cfg.skills?.urls ?? []
   return urls.map((url) => {
     const m = url.match(/github\.com\/([^/]+)\/([^/]+)/) ?? url.match(/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)/)
-    return m ? `${m[1]}/${m[2]}` : url.replace(/^https?:\/\//, "").split("/").slice(0, 2).join("/")
+    return m
+      ? `${m[1]}/${m[2]}`
+      : url
+          .replace(/^https?:\/\//, "")
+          .split("/")
+          .slice(0, 2)
+          .join("/")
   })
 }
 
@@ -451,7 +462,6 @@ async function getDiscovery(): Promise<DiscoveryPull | null> {
       const { Discovery } = await import("./discovery")
       const { Effect } = await import("effect")
 
-      // Use defaultLayer which already has all dependencies
       const eff = Effect.gen(function* () {
         const svc = yield* Discovery.Service
         return { pull: (url: string) => Effect.runPromise(svc.pull(url)) }
@@ -460,6 +470,7 @@ async function getDiscovery(): Promise<DiscoveryPull | null> {
       return Effect.runPromise(Effect.provide(eff, Discovery.defaultLayer))
     } catch (e) {
       log.error("failed to initialize discovery", { error: String(e) })
+      _discoveryPromise = null
       return null
     }
   })()

@@ -11,7 +11,7 @@
  *   bun script/release-local.ts 1.4.0        # explicit version
  *
  * Env:
- *   GH_REPO          - GitHub repo (default: hacimertgokhan/opencode-mux)
+ *   GH_REPO          - GitHub repo (default: anomalyco/opencode)
  *   OPENCODE_CHANNEL - Release channel (default: git branch name)
  */
 
@@ -26,7 +26,7 @@ process.chdir(root)
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-const GH_REPO = process.env.GH_REPO ?? "hacimertgokhan/opencode-mux"
+const GH_REPO = process.env.GH_REPO ?? "anomalyco/opencode"
 const bumpInput = process.argv[2]
 const validBumps = new Set(["major", "minor", "patch"])
 const isExplicitVersion = bumpInput && !validBumps.has(bumpInput) && /^\d+\.\d+\.\d+/.test(bumpInput)
@@ -138,13 +138,12 @@ async function main() {
   // ── Step 2: Build all targets ────────────────────────────────────────────
   log("Step 2/6", `Build all targets (v${version})`)
   try {
-    await $`./packages/opencode/script/build.ts`
-      .env({
-        ...process.env,
-        OPENCODE_VERSION: version,
-        OPENCODE_RELEASE: preview ? "" : "1",
-        GH_REPO,
-      })
+    await $`./packages/opencode/script/build.ts`.env({
+      ...process.env,
+      OPENCODE_VERSION: version,
+      OPENCODE_RELEASE: preview ? "" : "1",
+      GH_REPO,
+    })
   } catch {
     exit("Build failed")
   }
@@ -191,7 +190,12 @@ async function main() {
   const arch = process.arch
   const ext = platform === "win32" ? ".exe" : ""
   const binaryName = `opencode-mux${ext}`
-  const binaryPath = path.join(distDir, `opencode-mux-${platform === "win32" ? "windows" : platform}-${arch}`, "bin", binaryName)
+  const binaryPath = path.join(
+    distDir,
+    `opencode-mux-${platform === "win32" ? "windows" : platform}-${arch}`,
+    "bin",
+    binaryName,
+  )
 
   if (fs.existsSync(binaryPath)) {
     const verOut = await $`${binaryPath} --version`.text()
@@ -206,7 +210,10 @@ async function main() {
   const tag = `v${version}`
 
   // Check if tag exists
-  const tagExists = await $`git ls-remote --tags origin ${tag}`.text().then((o) => o.trim().length > 0).catch(() => false)
+  const tagExists = await $`git ls-remote --tags origin ${tag}`
+    .text()
+    .then((o) => o.trim().length > 0)
+    .catch(() => false)
 
   if (!tagExists) {
     // Create changelog body
